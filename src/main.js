@@ -17,6 +17,27 @@ function markVisited(id) {
 
 function isVisited(id) { return visited.has(String(id)) }
 
+// --- Story cache (localStorage, 20 min TTL) ---
+
+const CACHE_KEY = 'hn-stories-cache'
+const CACHE_TTL = 20 * 60 * 1000 // 20 minutes
+
+function getCachedStories() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const { ts, stories } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL) return null
+    return stories
+  } catch { return null }
+}
+
+function setCachedStories(stories) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), stories }))
+  } catch { /* quota exceeded — ignore */ }
+}
+
 // --- Routing ---
 
 function getRoute() {
@@ -156,53 +177,51 @@ function markNewAccounts(newAccounts, item) {
   if (el) el.innerHTML = renderComments(item.comments)
 }
 
-// --- Home feed: chronological timeline with points-based filtering ---
-//
-// Modeled after hckrnews.com:
-// - Stories sorted by time (newest first)
-// - Time dividers at 6-hour boundaries (morning/afternoon/evening/night)
-// - Filter determines minimum points threshold:
-//   top10: only show if story is in the top 10 by points for its day-window
-//   top20: top 20
-//   top50: top 50%
-//   all: everything
-// - Infinite scroll loads older stories
+// --- Story fetching via hackerwebapp (full objects, 30/page) ---
 
-let homeStories = []     // all fetched stories, sorted by time desc
+function normalizeStory(s) {
+  return {
+    id: s.id,
+    title: s.title,
+    url: s.url,
+    score: s.points || 0,
+    by: s.user || '',
+    time: s.time,
+    descendants: s.comments_count || 0,
+  }
+}
+
+async function fetchStories() {
+  const pages = await Promise.all([
+    fetchJSON(`${API}/news?page=1`),
+    fetchJSON(`${API}/news?page=2`),
+    fetchJSON(`${API}/best?page=1`),
+    fetchJSON(`${API}/best?page=2`),
+  ])
+
+  const seen = new Set()
+  const stories = []
+  for (const page of pages) {
+    for (const s of page) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id)
+        stories.push(normalizeStory(s))
+      }
+    }
+  }
+  return stories
+}
+
+// --- Home feed ---
+
+let homeStories = []
 let homeFilter = 'top20'
 let homeRendered = 0
-let homeFetching = false
-let homeExhausted = false
 let homeObserver = null
+let homeLoaded = false
+let savedScrollY = 0
 const HOME_CHUNK = 30
 
-// Fetch story IDs from top + best + new, dedupe
-async function fetchStoryIds() {
-  const [topIds, bestIds, newIds] = await Promise.all([
-    fetchJSON(`${HN_API}/topstories.json`),
-    fetchJSON(`${HN_API}/beststories.json`),
-    fetchJSON(`${HN_API}/newstories.json`),
-  ])
-  const seen = new Set()
-  const merged = []
-  // best first (quality), then top (trending), then new (fresh)
-  for (const id of [...bestIds, ...topIds, ...newIds]) {
-    if (!seen.has(id)) { seen.add(id); merged.push(id) }
-  }
-  return merged
-}
-
-// Fetch all item details in parallel (Firebase API has no rate limit)
-async function fetchItems(ids) {
-  const results = await Promise.allSettled(
-    ids.map(id => fetchJSON(`${HN_API}/item/${id}.json`))
-  )
-  return results
-    .filter(r => r.status === 'fulfilled' && r.value && !r.value.deleted)
-    .map(r => r.value)
-}
-
-// Group stories by calendar day
 function dayKey(epoch) {
   const d = new Date(epoch * 1000)
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
@@ -213,8 +232,7 @@ function dayLabel(epoch) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-// Per-day threshold, like hckrnews: "top 10" = top 10 stories of each day
-function computePerDayThresholds(stories, filter) {
+function computeFilteredIds(stories, filter) {
   if (filter === 'all') return null
   const byDay = new Map()
   for (const s of stories) {
@@ -222,24 +240,19 @@ function computePerDayThresholds(stories, filter) {
     if (!byDay.has(dk)) byDay.set(dk, [])
     byDay.get(dk).push(s)
   }
-  const thresholds = new Map()
-  for (const [dk, dayStories] of byDay) {
+  const allowed = new Set()
+  for (const [, dayStories] of byDay) {
     const sorted = [...dayStories].sort((a, b) => (b.score || 0) - (a.score || 0))
     let n
     if (filter === 'top10') n = 10
     else if (filter === 'top20') n = 20
     else if (filter === 'top50') n = Math.ceil(sorted.length / 2)
     else n = sorted.length
-    const idx = Math.min(n - 1, sorted.length - 1)
-    thresholds.set(dk, idx >= 0 ? (sorted[idx]?.score || 0) : 0)
+    for (let i = 0; i < Math.min(n, sorted.length); i++) {
+      allowed.add(sorted[i].id)
+    }
   }
-  return thresholds
-}
-
-function passesFilter(story, thresholds) {
-  if (!thresholds) return true
-  const dk = dayKey(story.time)
-  return (story.score || 0) >= (thresholds.get(dk) || 0)
+  return allowed
 }
 
 function storyTier(story, stories) {
@@ -266,11 +279,10 @@ function renderHomeStory(s, allStories) {
       <div>
         <div class="story-title">
           <a href="${url}" data-id="${s.id}">${esc(s.title)}</a>
-          ${dom ? ` <span class="story-domain">(${dom})</span>` : ''}
         </div>
         <div class="story-meta">
-          ${s.by ? `<a href="#user/${s.by}">${esc(s.by)}</a> · ` : ''}
-          ${timeAgo(s.time)}
+          ${s.by ? `<a href="#user/${s.by}" class="story-user" style="color: ${getUserColor(s.by, [])}">${esc(s.by)}</a>` : ''}${dom ? ` <span class="story-domain">(${dom})</span>` : ''}
+          · ${timeAgo(s.time)}
           · <a href="#item/${s.id}">${s.descendants || 0} comments</a>
         </div>
       </div>
@@ -279,8 +291,9 @@ function renderHomeStory(s, allStories) {
 
 function getVisibleStories(stories, filter) {
   const chrono = [...stories].sort((a, b) => b.time - a.time)
-  const thresholds = computePerDayThresholds(stories, filter)
-  return chrono.filter(s => passesFilter(s, thresholds))
+  const allowed = computeFilteredIds(stories, filter)
+  if (!allowed) return chrono
+  return chrono.filter(s => allowed.has(s.id))
 }
 
 function renderHomeFeed(stories, filter) {
@@ -348,6 +361,40 @@ function setupHomeScroll() {
   homeObserver.observe(sentinel)
 }
 
+// --- Home loading with cache ---
+
+async function loadHome(filter) {
+  const app = document.getElementById('app')
+  homeFilter = filter
+  renderNav(filter)
+
+  const cached = getCachedStories()
+  if (cached && cached.length) {
+    homeStories = cached
+    homeLoaded = true
+    app.innerHTML = renderHomeFeed(homeStories, filter)
+    setupHomeScroll()
+    fetchStories().then(stories => {
+      homeStories = stories
+      setCachedStories(stories)
+    }).catch(() => {})
+    return
+  }
+
+  app.innerHTML = '<div class="loading">Loading stories…</div>'
+
+  try {
+    const stories = await fetchStories()
+    homeStories = stories
+    homeLoaded = true
+    setCachedStories(stories)
+    app.innerHTML = renderHomeFeed(homeStories, filter)
+    setupHomeScroll()
+  } catch (e) {
+    app.innerHTML = `<div class="error">Failed to load: ${esc(e.message)}</div>`
+  }
+}
+
 // --- Item view ---
 
 function renderComments(comments, ancestors = []) {
@@ -358,7 +405,7 @@ function renderComments(comments, ancestors = []) {
     const nextAncestors = [...ancestors, c.user]
     return `
     <div class="comment${c.dead ? ' dead' : ''}">
-      <div class="comment-bar" title="Collapse thread"></div>
+      <div class="comment-bar" title="Collapse thread"><span class="collapse-icon">−</span></div>
       <div class="comment-content">
         <div class="comment-meta">
           ${prefix}<a href="#user/${c.user}" class="comment-user" data-user="${esc(c.user || '')}" style="color: ${color}">${esc(c.user || '[deleted]')}</a>
@@ -408,7 +455,13 @@ function renderUser(user) {
 
 document.addEventListener('click', (e) => {
   const bar = e.target.closest('.comment-bar')
-  if (bar) { bar.closest('.comment').classList.toggle('collapsed'); return }
+  if (bar) {
+    const comment = bar.closest('.comment')
+    comment.classList.toggle('collapsed')
+    const icon = bar.querySelector('.collapse-icon')
+    if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
+    return
+  }
 
   const link = e.target.closest('a[data-id]')
   if (link) {
@@ -420,7 +473,18 @@ document.addEventListener('click', (e) => {
   }
 })
 
+// ESC to go back from item/user view
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const r = getRoute()
+    if (r.view !== 'home') history.back()
+  }
+})
+
 // --- Router ---
+
+let lastHomeFilter = null
+let homeHTML = '' // cached DOM string for instant back-navigation
 
 async function route() {
   const app = document.getElementById('app')
@@ -429,24 +493,35 @@ async function route() {
   if (homeObserver) { homeObserver.disconnect(); homeObserver = null }
 
   if (r.view === 'home') {
-    renderNav(r.filter)
-    homeFilter = r.filter
-    app.innerHTML = '<div class="loading">Loading stories…</div>'
-    try {
-      const ids = await fetchStoryIds()
-      homeStories = await fetchItems(ids.slice(0, 300))
-      app.innerHTML = renderHomeFeed(homeStories, r.filter)
-      setupHomeScroll()
-    } catch (e) {
-      app.innerHTML = `<div class="error">Failed to load: ${esc(e.message)}</div>`
+    // Restore cached home HTML and scroll position if available
+    if (homeLoaded && homeHTML) {
+      renderNav(r.filter)
+      if (r.filter !== lastHomeFilter) {
+        lastHomeFilter = r.filter
+        homeFilter = r.filter
+        app.innerHTML = renderHomeFeed(homeStories, r.filter)
+        homeHTML = app.innerHTML
+        setupHomeScroll()
+      } else {
+        app.innerHTML = homeHTML
+        setupHomeScroll()
+        requestAnimationFrame(() => window.scrollTo(0, savedScrollY))
+      }
+    } else {
+      lastHomeFilter = r.filter
+      await loadHome(r.filter)
+      homeHTML = app.innerHTML
     }
   } else if (r.view === 'item') {
+    savedScrollY = window.scrollY
+    homeHTML = app.innerHTML
     renderNav(homeFilter)
     app.innerHTML = '<div class="loading">Loading…</div>'
     try {
       const item = await fetchJSON(`${API}/item/${r.id}`)
       markVisited(r.id)
       app.innerHTML = renderItem(item)
+      window.scrollTo(0, 0)
       const usernames = collectUsernames(item.comments)
       if (usernames.size) {
         fetchNewAccounts(usernames).then(na => markNewAccounts(na, item))
@@ -455,11 +530,14 @@ async function route() {
       app.innerHTML = `<div class="error">Failed to load item: ${esc(e.message)}</div>`
     }
   } else if (r.view === 'user') {
+    savedScrollY = window.scrollY
+    homeHTML = app.innerHTML
     renderNav(homeFilter)
     app.innerHTML = '<div class="loading">Loading…</div>'
     try {
       const user = await fetchJSON(`${API}/user/${r.id}`)
       app.innerHTML = renderUser(user)
+      window.scrollTo(0, 0)
     } catch (e) {
       app.innerHTML = `<div class="error">Failed to load user: ${esc(e.message)}</div>`
     }

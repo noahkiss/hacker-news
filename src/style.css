@@ -34,8 +34,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--base);
   color: var(--text);
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.6;
   min-height: 100vh;
+  -webkit-text-size-adjust: 100%;
 }
 
 a { color: var(--blue); text-decoration: none; }
@@ -46,7 +48,7 @@ a:visited { color: var(--lavender); }
 nav {
   background: var(--mantle);
   border-bottom: 1px solid var(--surface0);
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -58,7 +60,7 @@ nav {
 nav .logo {
   color: var(--peach);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   text-decoration: none;
   margin-right: 0.25rem;
 }
@@ -66,8 +68,8 @@ nav .logo:visited { color: var(--peach); }
 
 .filter-pill {
   color: var(--subtext0);
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
   border: 1px solid var(--surface1);
   border-radius: 4px;
 }
@@ -94,31 +96,33 @@ main {
 .stories { list-style: none; }
 
 .story {
-  padding: 0.6rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--surface0);
   display: grid;
-  grid-template-columns: 4.5rem 1fr;
+  grid-template-columns: 5rem 1fr;
   align-items: center;
   gap: 0.25rem;
 }
 
-.story-title a { color: var(--text); font-size: 0.95rem; }
+.story-title a { color: var(--text); font-size: 1.05rem; }
 .story-title a:visited { color: var(--overlay2); }
 .story-title a:hover { color: var(--blue); }
 
 .story-domain {
   color: var(--overlay0);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .story-meta {
   grid-column: 2;
   color: var(--overlay1);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .story-meta a { color: var(--overlay1); }
 .story-meta a:hover { color: var(--subtext1); }
+.story-user { color: inherit; }
+.story-user:visited { color: inherit; }
 
 /* Home story stats — clickable link to comments */
 .home-stats {
@@ -127,9 +131,9 @@ main {
   align-items: flex-end;
   justify-content: flex-start;
   padding-right: 0.75rem;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   line-height: 1.3;
-  gap: 0.05rem;
+  gap: 0.1rem;
   text-decoration: none;
   padding-top: 0.15rem;
 }
@@ -137,7 +141,7 @@ main {
 .home-stats:visited { color: inherit; }
 
 .home-points { font-weight: 600; }
-.home-comments { font-size: 0.7rem; }
+.home-comments { font-size: 0.8rem; }
 
 /* Visited stories */
 .story.visited .story-title a { color: var(--overlay1); }
@@ -155,7 +159,7 @@ main {
 /* Time dividers */
 .time-divider {
   color: var(--overlay0);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   text-transform: lowercase;
   padding: 0.25rem 0;
   margin-top: 0.25rem;
@@ -164,7 +168,7 @@ main {
 
 .day-divider {
   color: var(--peach);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 600;
   padding: 0.5rem 0 0.25rem;
   margin-top: 0.75rem;
@@ -177,6 +181,9 @@ main {
   border-top: none;
 }
 
+/* Prevent double border between last story and next day divider */
+.story:has(+ .day-divider) { border-bottom: none; }
+
 .home-sentinel { height: 1px; }
 
 /* Item / thread view */
@@ -187,7 +194,7 @@ main {
 }
 
 .item-header h1 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 0.25rem;
@@ -198,12 +205,12 @@ main {
 
 .item-header .item-meta {
   color: var(--overlay1);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .item-text {
   color: var(--subtext1);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   margin-bottom: 1rem;
   line-height: 1.6;
 }
@@ -227,22 +234,37 @@ main {
 /* Comments */
 .comment {
   display: flex;
-  margin-bottom: 0.25rem;
+  align-items: stretch;
+  margin-bottom: 0.35rem;
 }
 
 .comment-bar {
-  width: 1.25rem;
-  min-height: 100%;
+  width: 1.5rem;
   flex-shrink: 0;
   cursor: pointer;
   position: relative;
 }
 
+.collapse-icon {
+  display: block;
+  width: 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--overlay0);
+  font-family: monospace;
+  user-select: none;
+  /* Match comment-content top padding so icon aligns with username */
+  padding-top: 0.35rem;
+}
+.comment-bar:hover .collapse-icon { color: var(--subtext0); }
+
 .comment-bar::after {
   content: '';
   position: absolute;
-  left: 0.5rem;
-  top: 0;
+  left: 0.65rem;
+  top: 1.6rem;
   bottom: 0;
   width: 2px;
   background: var(--surface1);
@@ -252,7 +274,7 @@ main {
 
 .comment-bar:hover::after {
   width: 4px;
-  left: calc(0.5rem - 1px);
+  left: calc(0.65rem - 1px);
   opacity: 0.8;
 }
 
@@ -264,8 +286,8 @@ main {
 
 .comment-meta {
   color: var(--overlay1);
-  font-size: 0.75rem;
-  margin-bottom: 0.2rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
 }
 
 .comment-user {
@@ -275,7 +297,7 @@ main {
 .comment-user:visited { color: inherit; }
 
 .user-badge {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -284,8 +306,8 @@ main {
 
 .comment-text {
   color: var(--subtext1);
-  font-size: 0.85rem;
-  line-height: 1.55;
+  font-size: 0.95rem;
+  line-height: 1.65;
 }
 
 .comment-text a { color: var(--sapphire); }
@@ -320,3 +342,47 @@ main {
 }
 
 .error { color: var(--red); }
+
+/* Mobile */
+@media (max-width: 600px) {
+  nav {
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  nav .logo { font-size: 1.1rem; }
+
+  .filter-pill {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+  }
+
+  main { padding: 0.5rem 0.75rem; }
+
+  .story {
+    grid-template-columns: 3.5rem 1fr;
+    padding: 0.65rem 0;
+  }
+
+  .story-title a { font-size: 1rem; }
+
+  .home-stats {
+    font-size: 0.85rem;
+    padding-right: 0.5rem;
+  }
+
+  .home-comments { font-size: 0.75rem; }
+
+  .story-meta, .story-domain { font-size: 0.78rem; }
+
+  .comment-bar { width: 1.25rem; }
+  .collapse-icon { width: 1.25rem; }
+  .comment-bar::after { left: 0.5rem; }
+  .comment-bar:hover::after { left: calc(0.5rem - 1px); }
+
+  .item-header h1 { font-size: 1.15rem; }
+  .item-text { font-size: 0.92rem; }
+  .comment-text { font-size: 0.92rem; }
+  .comment-meta { font-size: 0.82rem; }
+}
