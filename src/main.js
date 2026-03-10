@@ -240,6 +240,18 @@ function computeFilteredIds(stories, filter) {
     if (!byDay.has(dk)) byDay.set(dk, [])
     byDay.get(dk).push(s)
   }
+
+  // Compute a quality threshold from completed days (not today).
+  // This prevents early-morning "top 10" from showing 2-point stories.
+  const today = dayKey(Math.floor(Date.now() / 1000))
+  const pastDays = [...byDay.entries()].filter(([dk]) => dk !== today)
+  let minScore = 0
+  if (pastDays.length) {
+    const pastScores = pastDays.flatMap(([, ds]) => ds.map(s => s.score || 0)).sort((a, b) => b - a)
+    // Median score of past days — stories below this aren't "top" material
+    minScore = pastScores[Math.floor(pastScores.length / 2)] || 0
+  }
+
   const allowed = new Set()
   for (const [, dayStories] of byDay) {
     const sorted = [...dayStories].sort((a, b) => (b.score || 0) - (a.score || 0))
@@ -249,7 +261,10 @@ function computeFilteredIds(stories, filter) {
     else if (filter === 'top50') n = Math.ceil(sorted.length / 2)
     else n = sorted.length
     for (let i = 0; i < Math.min(n, sorted.length); i++) {
-      allowed.add(sorted[i].id)
+      // Only include if score meets the historical quality bar
+      if ((sorted[i].score || 0) >= minScore) {
+        allowed.add(sorted[i].id)
+      }
     }
   }
   return allowed
@@ -395,17 +410,44 @@ async function loadHome(filter) {
   }
 }
 
+// --- Collapsed comment tracking (sessionStorage, per story) ---
+
+let currentItemId = null
+const COLLAPSED_PREFIX = 'hn-collapsed-'
+
+function getCollapsed() {
+  if (!currentItemId) return new Set()
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem(COLLAPSED_PREFIX + currentItemId) || '[]'))
+  } catch { return new Set() }
+}
+
+function saveCollapsed(ids) {
+  if (!currentItemId) return
+  if (ids.size === 0) sessionStorage.removeItem(COLLAPSED_PREFIX + currentItemId)
+  else sessionStorage.setItem(COLLAPSED_PREFIX + currentItemId, JSON.stringify([...ids]))
+}
+
+function toggleCollapsed(commentId) {
+  const collapsed = getCollapsed()
+  if (collapsed.has(commentId)) collapsed.delete(commentId)
+  else collapsed.add(commentId)
+  saveCollapsed(collapsed)
+}
+
 // --- Item view ---
 
 function renderComments(comments, ancestors = []) {
   if (!comments || !comments.length) return ''
+  const collapsed = getCollapsed()
   return comments.map(c => {
     const color = getUserColor(c.user, ancestors)
     const prefix = getUserPrefix(c.user)
     const nextAncestors = [...ancestors, c.user]
+    const isCollapsed = c.id && collapsed.has(String(c.id))
     return `
-    <div class="comment${c.dead ? ' dead' : ''}">
-      <div class="comment-bar" title="Collapse thread"><span class="collapse-icon">−</span></div>
+    <div class="comment${c.dead ? ' dead' : ''}${isCollapsed ? ' collapsed' : ''}" data-comment-id="${c.id || ''}">
+      <div class="comment-bar" title="Collapse thread"><span class="collapse-icon">${isCollapsed ? '+' : '−'}</span></div>
       <div class="comment-content">
         <div class="comment-meta">
           ${prefix}<a href="#user/${c.user}" class="comment-user" data-user="${esc(c.user || '')}" style="color: ${color}">${esc(c.user || '[deleted]')}</a>
@@ -460,6 +502,8 @@ document.addEventListener('click', (e) => {
     comment.classList.toggle('collapsed')
     const icon = bar.querySelector('.collapse-icon')
     if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
+    const cid = comment.dataset.commentId
+    if (cid) toggleCollapsed(cid)
     return
   }
 
@@ -520,6 +564,7 @@ async function route() {
     try {
       const item = await fetchJSON(`${API}/item/${r.id}`)
       markVisited(r.id)
+      currentItemId = r.id
       app.innerHTML = renderItem(item)
       window.scrollTo(0, 0)
       const usernames = collectUsernames(item.comments)
