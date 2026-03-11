@@ -108,6 +108,16 @@ main {
 .story-title a:visited { color: var(--overlay2); }
 .story-title a:hover { color: var(--blue); }
 
+.story-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+.story-tag.ask { color: var(--mauve); border: 1px solid var(--mauve); }
+.story-tag.show { color: var(--teal); border: 1px solid var(--teal); }
+
 .story-domain {
   color: var(--overlay0);
   font-size: 0.8rem;

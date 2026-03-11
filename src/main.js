@@ -179,6 +179,9 @@ function markNewAccounts(newAccounts, item) {
 
 // --- Story fetching via hackerwebapp (full objects, 30/page) ---
 
+let askIds = new Set()
+let showIds = new Set()
+
 function normalizeStory(s) {
   return {
     id: s.id,
@@ -191,13 +194,32 @@ function normalizeStory(s) {
   }
 }
 
+function storyTag(id) {
+  if (askIds.has(id)) return '<span class="story-tag ask">A</span> '
+  if (showIds.has(id)) return '<span class="story-tag show">S</span> '
+  return ''
+}
+
+function cleanTitle(title, id) {
+  if (askIds.has(id)) return title.replace(/^Ask HN:\s*/i, '')
+  if (showIds.has(id)) return title.replace(/^Show HN:\s*/i, '')
+  return title
+}
+
 async function fetchStories() {
-  const pages = await Promise.all([
-    fetchJSON(`${API}/news?page=1`),
-    fetchJSON(`${API}/news?page=2`),
-    fetchJSON(`${API}/best?page=1`),
-    fetchJSON(`${API}/best?page=2`),
+  const [pages, askList, showList] = await Promise.all([
+    Promise.all([
+      fetchJSON(`${API}/news?page=1`),
+      fetchJSON(`${API}/news?page=2`),
+      fetchJSON(`${API}/best?page=1`),
+      fetchJSON(`${API}/best?page=2`),
+    ]),
+    fetchJSON(`${HN_API}/askstories.json`).catch(() => []),
+    fetchJSON(`${HN_API}/showstories.json`).catch(() => []),
   ])
+
+  askIds = new Set(askList)
+  showIds = new Set(showList)
 
   const seen = new Set()
   const stories = []
@@ -293,7 +315,7 @@ function renderHomeStory(s, allStories) {
       </a>
       <div>
         <div class="story-title">
-          <a href="${url}" data-id="${s.id}">${esc(s.title)}</a>
+          ${storyTag(s.id)}<a href="${url}" data-id="${s.id}">${esc(cleanTitle(s.title, s.id))}</a>
         </div>
         <div class="story-meta">
           ${s.by ? `<a href="#user/${s.by}" class="story-user" style="color: ${getUserColor(s.by, [])}">${esc(s.by)}</a>` : ''}${dom ? ` <span class="story-domain">(${dom})</span>` : ''}
