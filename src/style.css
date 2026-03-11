@@ -302,6 +302,10 @@ main {
 }
 .comment-user:visited { color: inherit; }
 
+.comment-time { color: var(--overlay1); }
+.comment-time:visited { color: var(--overlay1); }
+.comment-time:hover { color: var(--subtext1); }
+
 .user-badge {
   font-size: 0.78rem;
   font-weight: 600;
@@ -339,6 +343,18 @@ main {
 .comment.collapsed > .comment-bar::after { opacity: 0.3; }
 
 .dead { opacity: 0.4; }
+
+/* Share button — inline text style matching item-meta */
+.share-btn {
+  background: none;
+  border: none;
+  color: var(--overlay1);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+}
+.share-btn:hover { color: var(--subtext1); }
 
 /* Loading / empty */
 .loading, .error {

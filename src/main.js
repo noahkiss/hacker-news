@@ -451,7 +451,7 @@ function renderComments(comments, ancestors = []) {
       <div class="comment-content">
         <div class="comment-meta">
           ${prefix}<a href="#user/${c.user}" class="comment-user" data-user="${esc(c.user || '')}" style="color: ${color}">${esc(c.user || '[deleted]')}</a>
-          ${c.time_ago || ''}
+          <a href="#item/${c.id}" class="comment-time">${c.time_ago || ''}</a>
         </div>
         <div class="comment-body">
           <div class="comment-text">${c.content || ''}</div>
@@ -474,6 +474,7 @@ function renderItem(item) {
         · <a href="#user/${item.user}">${esc(item.user || '')}</a>
         · ${item.time_ago || ''}
         · <a href="https://news.ycombinator.com/item?id=${item.id}">hn</a>
+        ${navigator.share ? `· <button class="share-btn" data-share-url="https://news.ycombinator.com/item?id=${item.id}" data-share-title="${esc(item.title || '')}">share</button>` : ''}
       </div>
     </div>
     ${item.content ? `<div class="item-text">${item.content}</div>` : ''}
@@ -481,12 +482,20 @@ function renderItem(item) {
   `
 }
 
+function formatDate(epoch) {
+  return new Date(epoch * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 function renderUser(user) {
+  const created = user.created ? formatDate(user.created) : ''
+  const submissions = user.submitted ? user.submitted.length : 0
   return `
     <div class="item-header">
       <h1>${esc(user.id)}</h1>
       <div class="item-meta">
-        ${user.karma ?? 0} karma · created ${user.created || ''}
+        ${user.karma ?? 0} karma · joined ${created}
+        · ${submissions} submissions
+        · <a href="https://news.ycombinator.com/user?id=${esc(user.id)}">hn</a>
       </div>
     </div>
     ${user.about ? `<div class="item-text">${user.about}</div>` : ''}
@@ -504,6 +513,16 @@ document.addEventListener('click', (e) => {
     if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
     const cid = comment.dataset.commentId
     if (cid) toggleCollapsed(cid)
+    return
+  }
+
+  const shareBtn = e.target.closest('.share-btn')
+  if (shareBtn) {
+    e.preventDefault()
+    navigator.share({
+      title: shareBtn.dataset.shareTitle,
+      url: shareBtn.dataset.shareUrl,
+    }).catch(() => {})
     return
   }
 
@@ -580,7 +599,7 @@ async function route() {
     renderNav(homeFilter)
     app.innerHTML = '<div class="loading">Loading…</div>'
     try {
-      const user = await fetchJSON(`${API}/user/${r.id}`)
+      const user = await fetchJSON(`${HN_API}/user/${r.id}.json`)
       app.innerHTML = renderUser(user)
       window.scrollTo(0, 0)
     } catch (e) {

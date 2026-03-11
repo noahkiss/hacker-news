@@ -22,6 +22,9 @@ Three files: `index.html`, `src/main.js`, `src/style.css`. No framework, no buil
 - **Admin/newbie badges**: red `[A]` for dang/tomhow, green `[N]` for <2 week accounts
 - **Infinite scroll**: IntersectionObserver, 30-story chunks
 - **Story cache**: 20 min TTL, background refresh
+- **User profiles**: Firebase API — karma, join date, submission count, about
+- **Share**: Web Share API button on item view (iOS PWA, mobile browsers)
+- **Comment permalinks**: timestamps link to that comment as its own top-level item
 
 ## Mobile
 
@@ -40,6 +43,6 @@ Three files: `index.html`, `src/main.js`, `src/style.css`. No framework, no buil
 
 ## Icons
 
-HN text on Catppuccin blue (`#89b4fa`) background with dark text (`#1e1e2e`). Generated from SVG via ImageMagick. Sizes: 512, 192, 180 (apple-touch), 32, 16, ico.
+Peach HN text (`#fab387`) on dark mantle (`#181825`) background. Canvas-rendered via Playwright, decoded from base64 PNGs. Sizes: 512, 192, 180 (apple-touch), 48, 32, 16, ico.
 
 Web app manifest at `public/manifest.json` — standalone display, dark theme.
