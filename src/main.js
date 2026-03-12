@@ -554,11 +554,15 @@ document.addEventListener('click', (e) => {
     return
   }
 
-  // Active filter pill — re-clicking navigates home (hashchange won't fire if hash is same)
+  // Active filter pill — re-clicking force-refreshes stories
   const pill = e.target.closest('.filter-pill.active')
   if (pill) {
+    e.preventDefault()
     savedScrollY = 0
-    route()
+    homeHTML = ''
+    homeLoaded = false
+    localStorage.removeItem(CACHE_KEY)
+    loadHome(homeFilter)
     return
   }
 
