@@ -146,6 +146,7 @@ main {
   gap: 0.1rem;
   text-decoration: none;
   padding-top: 0.15rem;
+  position: relative;
 }
 .home-stats:hover { text-decoration: none; opacity: 0.8; }
 .home-stats:visited { color: inherit; }
@@ -154,11 +155,14 @@ main {
 .home-comments { font-size: 0.8rem; }
 
 .unread-dot {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--peach);
-  align-self: center;
 }
 
 /* Visited stories */
