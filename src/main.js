@@ -179,9 +179,6 @@ function markNewAccounts(newAccounts, item) {
 
 // --- Story fetching via hackerwebapp (full objects, 30/page) ---
 
-let askIds = new Set()
-let showIds = new Set()
-
 function normalizeStory(s) {
   return {
     id: s.id,
@@ -194,32 +191,23 @@ function normalizeStory(s) {
   }
 }
 
-function storyTag(id) {
-  if (askIds.has(id)) return '<span class="story-tag ask">A</span> '
-  if (showIds.has(id)) return '<span class="story-tag show">S</span> '
+function storyTag(title) {
+  if (/^Ask HN[:]/i.test(title)) return '<span class="story-tag ask">A</span> '
+  if (/^Show HN[:]/i.test(title)) return '<span class="story-tag show">S</span> '
   return ''
 }
 
-function cleanTitle(title, id) {
-  if (askIds.has(id)) return title.replace(/^Ask HN:\s*/i, '')
-  if (showIds.has(id)) return title.replace(/^Show HN:\s*/i, '')
-  return title
+function cleanTitle(title) {
+  return title.replace(/^(Ask|Show) HN:\s*/i, '')
 }
 
 async function fetchStories() {
-  const [pages, askList, showList] = await Promise.all([
-    Promise.all([
-      fetchJSON(`${API}/news?page=1`),
-      fetchJSON(`${API}/news?page=2`),
-      fetchJSON(`${API}/best?page=1`),
-      fetchJSON(`${API}/best?page=2`),
-    ]),
-    fetchJSON(`${HN_API}/askstories.json`).catch(() => []),
-    fetchJSON(`${HN_API}/showstories.json`).catch(() => []),
+  const pages = await Promise.all([
+    fetchJSON(`${API}/news?page=1`),
+    fetchJSON(`${API}/news?page=2`),
+    fetchJSON(`${API}/best?page=1`),
+    fetchJSON(`${API}/best?page=2`),
   ])
-
-  askIds = new Set(askList)
-  showIds = new Set(showList)
 
   const seen = new Set()
   const stories = []
@@ -310,12 +298,13 @@ function renderHomeStory(s, allStories) {
   return `
     <li class="story home-story${v ? ' visited' : ''}" data-tier="${tier}" data-id="${s.id}">
       <a href="#item/${s.id}" class="home-stats${v ? ' visited' : ''}">
+        ${v ? '' : '<span class="unread-dot"></span>'}
         <span class="home-points">${s.score || 0}</span>
         <span class="home-comments">${s.descendants || 0}</span>
       </a>
       <div>
         <div class="story-title">
-          ${storyTag(s.id)}<a href="${url}" data-id="${s.id}">${esc(cleanTitle(s.title, s.id))}</a>
+          ${storyTag(s.title)}<a href="${url}" data-id="${s.id}">${esc(cleanTitle(s.title))}</a>
         </div>
         <div class="story-meta">
           ${s.by ? `<a href="#user/${s.by}" class="story-user" style="color: ${getUserColor(s.by, [])}">${esc(s.by)}</a>` : ''}${dom ? ` <span class="story-domain">(${dom})</span>` : ''}
@@ -530,11 +519,28 @@ document.addEventListener('click', (e) => {
   const bar = e.target.closest('.comment-bar')
   if (bar) {
     const comment = bar.closest('.comment')
+    const wasCollapsed = comment.classList.contains('collapsed')
     comment.classList.toggle('collapsed')
     const icon = bar.querySelector('.collapse-icon')
     if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
     const cid = comment.dataset.commentId
     if (cid) toggleCollapsed(cid)
+    // When collapsing, scroll to the next sibling comment (or parent's next sibling)
+    if (!wasCollapsed) {
+      let next = comment.nextElementSibling
+      while (next && !next.classList.contains('comment')) next = next.nextElementSibling
+      if (!next) {
+        // Walk up to find parent comment's next sibling
+        let parent = comment.parentElement?.closest('.comment')
+        while (parent && !parent.nextElementSibling?.classList?.contains('comment')) {
+          parent = parent.parentElement?.closest('.comment')
+        }
+        next = parent?.nextElementSibling
+      }
+      if (next) {
+        requestAnimationFrame(() => next.scrollIntoView({ block: 'start', behavior: 'instant' }))
+      }
+    }
     return
   }
 
@@ -545,6 +551,14 @@ document.addEventListener('click', (e) => {
       title: shareBtn.dataset.shareTitle,
       url: shareBtn.dataset.shareUrl,
     }).catch(() => {})
+    return
+  }
+
+  // Active filter pill — re-clicking navigates home (hashchange won't fire if hash is same)
+  const pill = e.target.closest('.filter-pill.active')
+  if (pill) {
+    savedScrollY = 0
+    route()
     return
   }
 
@@ -589,6 +603,17 @@ async function route() {
         setupHomeScroll()
       } else {
         app.innerHTML = homeHTML
+        // Sync visited state for stories viewed since cache was saved
+        for (const el of app.querySelectorAll('.home-story[data-id]')) {
+          if (isVisited(el.dataset.id) && !el.classList.contains('visited')) {
+            el.classList.add('visited')
+            const stats = el.querySelector('.home-stats')
+            if (stats) stats.classList.add('visited')
+            const dot = el.querySelector('.unread-dot')
+            if (dot) dot.remove()
+          }
+        }
+        homeHTML = app.innerHTML
         setupHomeScroll()
         requestAnimationFrame(() => window.scrollTo(0, savedScrollY))
       }
