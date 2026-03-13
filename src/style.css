@@ -156,7 +156,7 @@ main {
 
 .unread-dot {
   position: absolute;
-  left: 1.1rem;
+  left: 0.1rem;
   top: 50%;
   transform: translateY(-50%);
   width: 6px;
