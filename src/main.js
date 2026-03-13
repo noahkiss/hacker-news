@@ -543,8 +543,18 @@ function collapseComment(comment) {
         const commentTop = comment.getBoundingClientRect().top
         // Only scroll if the top of the collapsed comment is above the nav (off-screen)
         if (commentTop < navHeight) {
-          const top = next.getBoundingClientRect().top + window.scrollY - navHeight
-          window.scrollTo({ top })
+          const target = next.getBoundingClientRect().top + window.scrollY - navHeight
+          const start = window.scrollY
+          const dist = target - start
+          const duration = 150
+          const t0 = performance.now()
+          const step = (now) => {
+            const p = Math.min((now - t0) / duration, 1)
+            const ease = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
+            window.scrollTo(0, start + dist * ease)
+            if (p < 1) requestAnimationFrame(step)
+          }
+          requestAnimationFrame(step)
         }
       })
     }
