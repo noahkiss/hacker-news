@@ -448,7 +448,7 @@ function toggleCollapsed(commentId) {
 
 // --- Item view ---
 
-function renderComments(comments, ancestors = []) {
+function renderComments(comments, ancestors = [], depth = 0) {
   if (!comments || !comments.length) return ''
   const collapsed = getCollapsed()
   return comments.map(c => {
@@ -456,17 +456,21 @@ function renderComments(comments, ancestors = []) {
     const prefix = getUserPrefix(c.user)
     const nextAncestors = [...ancestors, c.user]
     const isCollapsed = c.id && collapsed.has(String(c.id))
+    const hasReplies = c.comments && c.comments.length > 0
     return `
     <div class="comment${c.dead ? ' dead' : ''}${isCollapsed ? ' collapsed' : ''}" data-comment-id="${c.id || ''}">
-      <div class="comment-bar" title="Collapse thread"><span class="collapse-icon">${isCollapsed ? '+' : '−'}</span></div>
+      <div class="comment-bar"><span class="collapse-icon">${isCollapsed ? '+' : '−'}</span></div>
       <div class="comment-content">
         <div class="comment-meta">
           ${prefix}<a href="#user/${c.user}" class="comment-user" data-user="${esc(c.user || '')}" style="color: ${color}">${esc(c.user || '[deleted]')}</a>
           <a href="#item/${c.id}" class="comment-time">${c.time_ago || ''}</a>
+          <span class="collapse-target"></span>
         </div>
         <div class="comment-body">
           <div class="comment-text">${c.content || ''}</div>
-          ${renderComments(c.comments, nextAncestors)}
+          ${depth >= 5 && hasReplies
+            ? `<a href="#item/${c.id}" class="continue-thread">continue thread →</a>`
+            : renderComments(c.comments, nextAncestors, depth + 1)}
         </div>
       </div>
     </div>`
@@ -515,32 +519,44 @@ function renderUser(user) {
 
 // --- Event delegation ---
 
+function collapseComment(comment) {
+  const wasCollapsed = comment.classList.contains('collapsed')
+  comment.classList.toggle('collapsed')
+  const icon = comment.querySelector(':scope > .comment-bar .collapse-icon')
+  if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
+  const cid = comment.dataset.commentId
+  if (cid) toggleCollapsed(cid)
+  // When collapsing, scroll to the next sibling comment (or parent's next sibling)
+  if (!wasCollapsed) {
+    let next = comment.nextElementSibling
+    while (next && !next.classList.contains('comment')) next = next.nextElementSibling
+    if (!next) {
+      let parent = comment.parentElement?.closest('.comment')
+      while (parent && !parent.nextElementSibling?.classList?.contains('comment')) {
+        parent = parent.parentElement?.closest('.comment')
+      }
+      next = parent?.nextElementSibling
+    }
+    if (next) {
+      requestAnimationFrame(() => {
+        const navHeight = document.querySelector('nav')?.offsetHeight || 0
+        const top = next.getBoundingClientRect().top + window.scrollY - navHeight
+        window.scrollTo({ top })
+      })
+    }
+  }
+}
+
 document.addEventListener('click', (e) => {
   const bar = e.target.closest('.comment-bar')
   if (bar) {
-    const comment = bar.closest('.comment')
-    const wasCollapsed = comment.classList.contains('collapsed')
-    comment.classList.toggle('collapsed')
-    const icon = bar.querySelector('.collapse-icon')
-    if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
-    const cid = comment.dataset.commentId
-    if (cid) toggleCollapsed(cid)
-    // When collapsing, scroll to the next sibling comment (or parent's next sibling)
-    if (!wasCollapsed) {
-      let next = comment.nextElementSibling
-      while (next && !next.classList.contains('comment')) next = next.nextElementSibling
-      if (!next) {
-        // Walk up to find parent comment's next sibling
-        let parent = comment.parentElement?.closest('.comment')
-        while (parent && !parent.nextElementSibling?.classList?.contains('comment')) {
-          parent = parent.parentElement?.closest('.comment')
-        }
-        next = parent?.nextElementSibling
-      }
-      if (next) {
-        requestAnimationFrame(() => next.scrollIntoView({ block: 'start', behavior: 'instant' }))
-      }
-    }
+    collapseComment(bar.closest('.comment'))
+    return
+  }
+
+  // Invisible click target to the right of username/timestamp collapses
+  if (e.target.closest('.collapse-target')) {
+    collapseComment(e.target.closest('.comment'))
     return
   }
 
@@ -596,6 +612,7 @@ async function route() {
   if (homeObserver) { homeObserver.disconnect(); homeObserver = null }
 
   if (r.view === 'home') {
+    document.title = 'Hacker News'
     // Restore cached home HTML and scroll position if available
     if (homeLoaded && homeHTML) {
       renderNav(r.filter)
@@ -635,6 +652,7 @@ async function route() {
       const item = await fetchJSON(`${API}/item/${r.id}`)
       markVisited(r.id)
       currentItemId = r.id
+      document.title = item.title || 'Hacker News'
       app.innerHTML = renderItem(item)
       window.scrollTo(0, 0)
       const usernames = collectUsernames(item.comments)

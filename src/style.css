@@ -29,6 +29,7 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -316,6 +317,16 @@ main {
   color: var(--overlay1);
   font-size: 0.85rem;
   margin-bottom: 0.25rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.collapse-target {
+  flex: 1;
+  align-self: stretch;
+  cursor: pointer;
+  min-width: 2rem;
 }
 
 .comment-user {
@@ -359,6 +370,16 @@ main {
   border-radius: 3px;
   font-size: 0.85em;
 }
+
+/* Continue thread link */
+.continue-thread {
+  display: inline-block;
+  color: var(--overlay1);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+.continue-thread:visited { color: var(--overlay1); }
+.continue-thread:hover { color: var(--subtext1); }
 
 /* Collapsed comment */
 .comment.collapsed > .comment-content > .comment-body { display: none; }
