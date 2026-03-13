@@ -309,7 +309,7 @@ function renderHomeStory(s, allStories) {
         <div class="story-meta">
           ${s.by ? `<a href="#user/${s.by}" class="story-user" style="color: ${getUserColor(s.by, [])}">${esc(s.by)}</a>` : ''}${dom ? ` <span class="story-domain">(${dom})</span>` : ''}
           · ${timeAgo(s.time)}
-          · <a href="#item/${s.id}">${s.descendants || 0} comments</a>
+          · <a href="#item/${s.id}" class="nowrap">${s.descendants || 0}&nbsp;comments</a>
         </div>
       </div>
     </li>`
