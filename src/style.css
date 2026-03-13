@@ -80,11 +80,10 @@ nav .logo:visited { color: var(--peach); }
   text-decoration: none;
 }
 .filter-pill.active {
-  background: var(--peach);
-  color: var(--crust);
+  color: var(--peach);
   border-color: var(--peach);
 }
-.filter-pill.active:visited { color: var(--crust); }
+.filter-pill.active:visited { color: var(--peach); }
 
 main {
   max-width: 52rem;
