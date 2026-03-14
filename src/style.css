@@ -386,7 +386,7 @@ main {
 .dead { opacity: 0.4; }
 
 /* Share button — inline text style matching item-meta */
-.share-btn {
+.share-btn, .fav-btn {
   background: none;
   border: none;
   color: var(--overlay1);
@@ -395,7 +395,7 @@ main {
   cursor: pointer;
   padding: 0;
 }
-.share-btn:hover { color: var(--subtext1); }
+.share-btn:hover, .fav-btn:hover { color: var(--subtext1); }
 
 /* Loading / empty */
 .loading, .error {

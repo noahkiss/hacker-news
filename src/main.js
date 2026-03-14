@@ -3,19 +3,96 @@ import './style.css'
 const API = 'https://api.hackerwebapp.com'
 const HN_API = 'https://hacker-news.firebaseio.com/v0'
 
-// --- Visited tracking (localStorage) ---
+// --- Visited tracking (localStorage + KV sync) ---
 
 const VISITED_KEY = 'hn-visited'
 const visited = new Set(JSON.parse(localStorage.getItem(VISITED_KEY) || '[]'))
+let visitedPendingSync = []
 
-function markVisited(id) {
-  visited.add(String(id))
+function saveVisitedLocal() {
   const arr = [...visited]
   if (arr.length > 2000) arr.splice(0, arr.length - 2000)
   localStorage.setItem(VISITED_KEY, JSON.stringify(arr))
 }
 
+function markVisited(id) {
+  visited.add(String(id))
+  visitedPendingSync.push(String(id))
+  saveVisitedLocal()
+}
+
 function isVisited(id) { return visited.has(String(id)) }
+
+// Sync visited with KV — pull remote, merge, push new
+async function syncVisited() {
+  try {
+    const res = await fetch('/api/visited')
+    if (res.ok) {
+      const { ids } = await res.json()
+      for (const id of ids) visited.add(id)
+      saveVisitedLocal()
+    }
+  } catch { /* offline — skip */ }
+}
+
+async function pushVisited() {
+  if (!visitedPendingSync.length) return
+  const ids = [...visitedPendingSync]
+  visitedPendingSync = []
+  try {
+    await fetch('/api/visited', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+  } catch {
+    visitedPendingSync.push(...ids) // retry next time
+  }
+}
+
+// Push visited on page unload and periodically
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') pushVisited()
+})
+setInterval(pushVisited, 60000)
+
+// --- Favorites (localStorage + KV sync) ---
+
+const FAVORITES_KEY = 'hn-favorites'
+const favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]'))
+
+function saveFavoritesLocal() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]))
+}
+
+function isFavorite(id) { return favorites.has(String(id)) }
+
+async function toggleFavorite(id) {
+  const sid = String(id)
+  const adding = !favorites.has(sid)
+  if (adding) favorites.add(sid)
+  else favorites.delete(sid)
+  saveFavoritesLocal()
+  try {
+    await fetch('/api/favorites', {
+      method: adding ? 'POST' : 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sid }),
+    })
+  } catch { /* offline — localStorage is source of truth */ }
+  return adding
+}
+
+async function syncFavorites() {
+  try {
+    const res = await fetch('/api/favorites')
+    if (res.ok) {
+      const { ids } = await res.json()
+      for (const id of ids) favorites.add(id)
+      saveFavoritesLocal()
+    }
+  } catch { /* offline */ }
+}
 
 // --- Story cache (localStorage, 20 min TTL) ---
 
@@ -45,6 +122,7 @@ function getRoute() {
   const [path, ...rest] = hash.split('/')
   if (path === 'item') return { view: 'item', id: rest[0] }
   if (path === 'user') return { view: 'user', id: rest[0] }
+  if (path === 'favorites') return { view: 'favorites' }
   const params = new URLSearchParams(hash.split('?')[1])
   const filter = params.get('f') || 'top20'
   return { view: 'home', filter }
@@ -64,6 +142,7 @@ function renderNav(filter) {
     ${filters.map(([key, label]) =>
       `<a href="#?f=${key}" class="filter-pill${filter === key ? ' active' : ''}">${label}</a>`
     ).join('')}
+    <a href="#favorites" class="filter-pill${filter === 'favorites' ? ' active' : ''}">saved</a>
   `
 }
 
@@ -487,6 +566,7 @@ function renderItem(item) {
         · <a href="#user/${item.user}">${esc(item.user || '')}</a>
         · ${item.time_ago || ''}
         · <a href="https://news.ycombinator.com/item?id=${item.id}">hn</a>
+        · <button class="fav-btn" data-id="${item.id}">${isFavorite(item.id) ? 'unsave' : 'save'}</button>
         ${navigator.share ? `· <button class="share-btn" data-share-url="https://news.ycombinator.com/item?id=${item.id}" data-share-title="${esc(item.title || '')}">share</button>` : ''}
       </div>
     </div>
@@ -582,15 +662,29 @@ document.addEventListener('click', (e) => {
     return
   }
 
-  // Active filter pill — re-clicking force-refreshes stories
+  const favBtn = e.target.closest('.fav-btn')
+  if (favBtn) {
+    e.preventDefault()
+    toggleFavorite(favBtn.dataset.id).then(added => {
+      favBtn.textContent = added ? 'unsave' : 'save'
+    })
+    return
+  }
+
+  // Active filter pill — re-clicking force-refreshes
   const pill = e.target.closest('.filter-pill.active')
   if (pill) {
     e.preventDefault()
-    savedScrollY = 0
-    homeHTML = ''
-    homeLoaded = false
-    localStorage.removeItem(CACHE_KEY)
-    loadHome(homeFilter)
+    const r = getRoute()
+    if (r.view === 'favorites') {
+      loadFavorites()
+    } else {
+      savedScrollY = 0
+      homeHTML = ''
+      homeLoaded = false
+      localStorage.removeItem(CACHE_KEY)
+      loadHome(homeFilter)
+    }
     return
   }
 
@@ -611,6 +705,30 @@ document.addEventListener('keydown', (e) => {
     if (r.view !== 'home') history.back()
   }
 })
+
+// --- Favorites view ---
+
+async function loadFavorites() {
+  const app = document.getElementById('app')
+  const ids = [...favorites]
+  if (!ids.length) {
+    app.innerHTML = '<div class="loading">No saved stories yet.</div>'
+    return
+  }
+  app.innerHTML = '<div class="loading">Loading saved stories…</div>'
+  const results = await Promise.allSettled(
+    ids.map(id => fetchJSON(`${API}/item/${id}`))
+  )
+  const items = results
+    .filter(r => r.status === 'fulfilled' && r.value)
+    .map(r => normalizeStory(r.value))
+    .sort((a, b) => b.time - a.time)
+
+  let html = '<ol class="stories home-stories">'
+  for (const s of items) html += renderHomeStory(s, items)
+  html += '</ol>'
+  app.innerHTML = html
+}
 
 // --- Router ---
 
@@ -674,6 +792,13 @@ async function route() {
     } catch (e) {
       app.innerHTML = `<div class="error">Failed to load item: ${esc(e.message)}</div>`
     }
+  } else if (r.view === 'favorites') {
+    savedScrollY = window.scrollY
+    homeHTML = app.innerHTML
+    document.title = 'Saved — Hacker News'
+    renderNav('favorites')
+    await loadFavorites()
+    window.scrollTo(0, 0)
   } else if (r.view === 'user') {
     savedScrollY = window.scrollY
     homeHTML = app.innerHTML
@@ -690,4 +815,15 @@ async function route() {
 }
 
 window.addEventListener('hashchange', route)
+
+// Sync with KV on startup
+syncVisited().then(() => syncFavorites()).then(() => {
+  // Re-render if on home to reflect synced visited state
+  const r = getRoute()
+  if (r.view === 'home' && homeLoaded) {
+    homeHTML = ''
+    route()
+  }
+})
+
 route()

@@ -1,2 +1,8 @@
 name = "hacker-news"
 pages_build_output_dir = "./dist"
+
+# KV binding — set the real namespace ID after creating it in CF dashboard
+# Also bind in CF dashboard: Pages > Settings > Bindings > KV namespace > HN_KV
+[[kv_namespaces]]
+binding = "HN_KV"
+id = "TBD"
