@@ -203,10 +203,8 @@ function cleanTitle(title) {
 
 async function fetchStories() {
   const pages = await Promise.all([
-    fetchJSON(`${API}/news?page=1`),
-    fetchJSON(`${API}/news?page=2`),
-    fetchJSON(`${API}/best?page=1`),
-    fetchJSON(`${API}/best?page=2`),
+    ...Array.from({ length: 5 }, (_, i) => fetchJSON(`${API}/news?page=${i + 1}`)),
+    ...Array.from({ length: 5 }, (_, i) => fetchJSON(`${API}/best?page=${i + 1}`)),
   ])
 
   const seen = new Set()
