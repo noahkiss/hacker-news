@@ -604,38 +604,26 @@ function collapseComment(comment) {
   if (icon) icon.textContent = comment.classList.contains('collapsed') ? '+' : '−'
   const cid = comment.dataset.commentId
   if (cid) toggleCollapsed(cid)
-  // When collapsing, scroll to the next sibling comment (or parent's next sibling)
+  // When collapsing, scroll to the collapsed comment if its top is off-screen
   if (!wasCollapsed) {
-    let next = comment.nextElementSibling
-    while (next && !next.classList.contains('comment')) next = next.nextElementSibling
-    if (!next) {
-      let parent = comment.parentElement?.closest('.comment')
-      while (parent && !parent.nextElementSibling?.classList?.contains('comment')) {
-        parent = parent.parentElement?.closest('.comment')
-      }
-      next = parent?.nextElementSibling
-    }
-    if (next) {
-      requestAnimationFrame(() => {
-        const navHeight = document.querySelector('nav')?.offsetHeight || 0
-        const commentTop = comment.getBoundingClientRect().top
-        // Only scroll if the top of the collapsed comment is above the nav (off-screen)
-        if (commentTop < navHeight) {
-          const target = next.getBoundingClientRect().top + window.scrollY - navHeight
-          const start = window.scrollY
-          const dist = target - start
-          const duration = 150
-          const t0 = performance.now()
-          const step = (now) => {
-            const p = Math.min((now - t0) / duration, 1)
-            const ease = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
-            window.scrollTo(0, start + dist * ease)
-            if (p < 1) requestAnimationFrame(step)
-          }
-          requestAnimationFrame(step)
+    requestAnimationFrame(() => {
+      const navHeight = document.querySelector('nav')?.offsetHeight || 0
+      const commentTop = comment.getBoundingClientRect().top
+      if (commentTop < navHeight) {
+        const target = comment.getBoundingClientRect().top + window.scrollY - navHeight
+        const start = window.scrollY
+        const dist = target - start
+        const duration = 150
+        const t0 = performance.now()
+        const step = (now) => {
+          const p = Math.min((now - t0) / duration, 1)
+          const ease = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
+          window.scrollTo(0, start + dist * ease)
+          if (p < 1) requestAnimationFrame(step)
         }
-      })
-    }
+        requestAnimationFrame(step)
+      }
+    })
   }
 }
 
