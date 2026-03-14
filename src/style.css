@@ -257,11 +257,14 @@ main {
   overflow-x: hidden;
 }
 
-.comment {
+blockquote.comment {
   display: flex;
   align-items: stretch;
   margin-bottom: 0.35rem;
   min-width: 0;
+  font-style: normal;
+  border: none;
+  padding: 0;
 }
 
 .comment-bar {

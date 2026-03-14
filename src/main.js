@@ -535,14 +535,14 @@ function renderComments(comments, ancestors = [], depth = 0) {
     const isCollapsed = c.id && collapsed.has(String(c.id))
     const hasReplies = c.comments && c.comments.length > 0
     return `
-    <div class="comment${c.dead ? ' dead' : ''}${isCollapsed ? ' collapsed' : ''}" data-comment-id="${c.id || ''}">
+    <blockquote class="comment${c.dead ? ' dead' : ''}${isCollapsed ? ' collapsed' : ''}" data-comment-id="${c.id || ''}">
       <div class="comment-bar"><span class="collapse-icon">${isCollapsed ? '+' : '−'}</span></div>
       <div class="comment-content">
-        <div class="comment-meta">
+        <footer class="comment-meta">
           ${prefix}<a href="#user/${c.user}" class="comment-user" data-user="${esc(c.user || '')}" style="color: ${color}">${esc(c.user || '[deleted]')}</a>
           <a href="#item/${c.id}" class="comment-time">${c.time_ago || ''}</a>
           <span class="collapse-target"></span>
-        </div>
+        </footer>
         <div class="comment-body">
           <div class="comment-text">${c.content || ''}</div>
           ${depth >= 5 && hasReplies
@@ -550,7 +550,7 @@ function renderComments(comments, ancestors = [], depth = 0) {
             : renderComments(c.comments, nextAncestors, depth + 1)}
         </div>
       </div>
-    </div>`
+    </blockquote>`
   }).join('')
 }
 
@@ -558,20 +558,22 @@ function renderItem(item) {
   userColorMap = new Map()
   newAccountSet = new Set()
   return `
-    <div class="item-header">
-      <h1><a href="${item.url || '#'}">${esc(item.title || '')}</a></h1>
-      ${item.domain ? `<span class="story-domain">(${esc(item.domain)})</span>` : ''}
-      <div class="item-meta">
-        ${item.points ?? 0} points
-        · <a href="#user/${item.user}">${esc(item.user || '')}</a>
-        · ${item.time_ago || ''}
-        · <a href="https://news.ycombinator.com/item?id=${item.id}">hn</a>
-        · <button class="fav-btn" data-id="${item.id}">${isFavorite(item.id) ? 'unsave' : 'save'}</button>
-        ${navigator.share ? `· <button class="share-btn" data-share-url="https://news.ycombinator.com/item?id=${item.id}" data-share-title="${esc(item.title || '')}">share</button>` : ''}
-      </div>
-    </div>
-    ${item.content ? `<div class="item-text">${item.content}</div>` : ''}
-    <div class="comments-container">${renderComments(item.comments)}</div>
+    <article>
+      <header class="item-header">
+        <h1><a href="${item.url || '#'}">${esc(item.title || '')}</a></h1>
+        ${item.domain ? `<span class="story-domain">(${esc(item.domain)})</span>` : ''}
+        <p class="item-meta">
+          ${item.points ?? 0} points
+          · <a href="#user/${item.user}">${esc(item.user || '')}</a>
+          · ${item.time_ago || ''}
+          · <a href="https://news.ycombinator.com/item?id=${item.id}">hn</a>
+          · <button class="fav-btn" data-id="${item.id}">${isFavorite(item.id) ? 'unsave' : 'save'}</button>
+          ${navigator.share ? `· <button class="share-btn" data-share-url="https://news.ycombinator.com/item?id=${item.id}" data-share-title="${esc(item.title || '')}">share</button>` : ''}
+        </p>
+      </header>
+      ${item.content ? `<div class="item-text">${item.content}</div>` : ''}
+      <section class="comments-container">${renderComments(item.comments)}</section>
+    </article>
   `
 }
 
