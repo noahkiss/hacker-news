@@ -271,8 +271,8 @@ function computeFilteredIds(stories, filter) {
     else if (filter === 'top50') n = Math.ceil(sorted.length / 2)
     else n = sorted.length
     for (let i = 0; i < Math.min(n, sorted.length); i++) {
-      // Only include if score meets the historical quality bar
-      if ((sorted[i].score || 0) >= minScore) {
+      // Only apply quality floor to top10/top20 — top50 is already lenient
+      if (filter === 'top50' || (sorted[i].score || 0) >= minScore) {
         allowed.add(sorted[i].id)
       }
     }
