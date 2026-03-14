@@ -5,4 +5,4 @@ pages_build_output_dir = "./dist"
 # Also bind in CF dashboard: Pages > Settings > Bindings > KV namespace > HN_KV
 [[kv_namespaces]]
 binding = "HN_KV"
-id = "TBD"
+id = "8a91e2a2d20d4cfda344af34b95450eb"
