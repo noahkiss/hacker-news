@@ -733,7 +733,7 @@ function showCommentNav() {
     }
   }
 
-  function startPress(e) {
+  commentNavBtn.addEventListener('pointerdown', () => {
     didLongPress = false
     longPressTimer = setTimeout(() => {
       didLongPress = true
@@ -741,27 +741,10 @@ function showCommentNav() {
       goPrev()
       setTimeout(() => commentNavBtn.classList.remove('going-up'), 300)
     }, 400)
-  }
-
-  function endPress(e) {
-    clearTimeout(longPressTimer)
-    if (!didLongPress) goNext()
-  }
-
-  function cancelPress() {
-    clearTimeout(longPressTimer)
-  }
-
-  commentNavBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault()
-    startPress(e)
   })
-  commentNavBtn.addEventListener('pointerup', (e) => {
-    e.preventDefault()
-    endPress(e)
-  })
-  commentNavBtn.addEventListener('pointercancel', cancelPress)
-  commentNavBtn.addEventListener('click', (e) => e.preventDefault())
+  commentNavBtn.addEventListener('pointerup', () => clearTimeout(longPressTimer))
+  commentNavBtn.addEventListener('pointercancel', () => clearTimeout(longPressTimer))
+  commentNavBtn.addEventListener('click', () => { if (!didLongPress) goNext() })
   commentNavBtn.addEventListener('contextmenu', (e) => e.preventDefault())
 }
 
