@@ -753,11 +753,15 @@ function showCommentNav() {
   }
 
   commentNavBtn.addEventListener('pointerdown', (e) => {
-    commentNavBtn.setPointerCapture(e.pointerId)
+    e.preventDefault()
     startPress(e)
   })
-  commentNavBtn.addEventListener('pointerup', endPress)
+  commentNavBtn.addEventListener('pointerup', (e) => {
+    e.preventDefault()
+    endPress(e)
+  })
   commentNavBtn.addEventListener('pointercancel', cancelPress)
+  commentNavBtn.addEventListener('click', (e) => e.preventDefault())
   commentNavBtn.addEventListener('contextmenu', (e) => e.preventDefault())
 }
 
