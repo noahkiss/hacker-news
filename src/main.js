@@ -688,6 +688,83 @@ document.addEventListener('click', (e) => {
   }
 })
 
+// --- Comment nav button ---
+
+let commentNavBtn = null
+
+function showCommentNav() {
+  if (commentNavBtn) return
+  commentNavBtn = document.createElement('button')
+  commentNavBtn.className = 'comment-nav-btn'
+  commentNavBtn.innerHTML = '<span class="chevron"></span>'
+  commentNavBtn.setAttribute('aria-label', 'Next comment')
+  document.body.appendChild(commentNavBtn)
+
+  let longPressTimer = null
+  let didLongPress = false
+
+  function getTopLevelComments() {
+    return [...document.querySelectorAll('.comments-container > blockquote.comment')]
+  }
+
+  function scrollToComment(el) {
+    const navHeight = document.querySelector('nav')?.offsetHeight || 0
+    const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 8
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
+
+  function goNext() {
+    const navHeight = document.querySelector('nav')?.offsetHeight || 0
+    const threshold = window.scrollY + navHeight + 12
+    const comments = getTopLevelComments()
+    for (const c of comments) {
+      const cTop = c.getBoundingClientRect().top + window.scrollY
+      if (cTop > threshold) { scrollToComment(c); return }
+    }
+  }
+
+  function goPrev() {
+    const navHeight = document.querySelector('nav')?.offsetHeight || 0
+    const threshold = window.scrollY + navHeight - 4
+    const comments = getTopLevelComments()
+    for (let i = comments.length - 1; i >= 0; i--) {
+      const cTop = comments[i].getBoundingClientRect().top + window.scrollY
+      if (cTop < threshold) { scrollToComment(comments[i]); return }
+    }
+  }
+
+  function startPress(e) {
+    didLongPress = false
+    longPressTimer = setTimeout(() => {
+      didLongPress = true
+      commentNavBtn.classList.add('going-up')
+      goPrev()
+      setTimeout(() => commentNavBtn.classList.remove('going-up'), 300)
+    }, 400)
+  }
+
+  function endPress(e) {
+    clearTimeout(longPressTimer)
+    if (!didLongPress) goNext()
+  }
+
+  function cancelPress() {
+    clearTimeout(longPressTimer)
+  }
+
+  commentNavBtn.addEventListener('mousedown', startPress)
+  commentNavBtn.addEventListener('mouseup', endPress)
+  commentNavBtn.addEventListener('mouseleave', cancelPress)
+  commentNavBtn.addEventListener('touchstart', startPress, { passive: true })
+  commentNavBtn.addEventListener('touchend', (e) => { e.preventDefault(); endPress(e) })
+  commentNavBtn.addEventListener('touchcancel', cancelPress)
+  commentNavBtn.addEventListener('contextmenu', (e) => e.preventDefault())
+}
+
+function hideCommentNav() {
+  if (commentNavBtn) { commentNavBtn.remove(); commentNavBtn = null }
+}
+
 // ESC to go back from item/user view
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -729,6 +806,7 @@ async function route() {
   const app = document.getElementById('app')
   const r = getRoute()
 
+  hideCommentNav()
   if (homeObserver) { homeObserver.disconnect(); homeObserver = null }
 
   if (r.view === 'home') {
@@ -776,6 +854,7 @@ async function route() {
       app.innerHTML = renderItem(item)
       window.scrollTo(0, 0)
       const usernames = collectUsernames(item.comments)
+      if (item.comments && item.comments.length) showCommentNav()
       if (usernames.size) {
         fetchNewAccounts(usernames).then(na => markNewAccounts(na, item))
       }
