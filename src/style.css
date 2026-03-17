@@ -412,7 +412,7 @@ blockquote.comment {
 /* Comment nav button */
 .comment-nav-btn {
   position: fixed;
-  bottom: 1.5rem;
+  bottom: 4.25rem;
   left: 50%;
   transform: translateX(-50%);
   width: 2.75rem;
