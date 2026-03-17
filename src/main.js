@@ -752,12 +752,12 @@ function showCommentNav() {
     clearTimeout(longPressTimer)
   }
 
-  commentNavBtn.addEventListener('mousedown', startPress)
-  commentNavBtn.addEventListener('mouseup', endPress)
-  commentNavBtn.addEventListener('mouseleave', cancelPress)
-  commentNavBtn.addEventListener('touchstart', startPress, { passive: true })
-  commentNavBtn.addEventListener('touchend', (e) => { e.preventDefault(); endPress(e) })
-  commentNavBtn.addEventListener('touchcancel', cancelPress)
+  commentNavBtn.addEventListener('pointerdown', (e) => {
+    commentNavBtn.setPointerCapture(e.pointerId)
+    startPress(e)
+  })
+  commentNavBtn.addEventListener('pointerup', endPress)
+  commentNavBtn.addEventListener('pointercancel', cancelPress)
   commentNavBtn.addEventListener('contextmenu', (e) => e.preventDefault())
 }
 
