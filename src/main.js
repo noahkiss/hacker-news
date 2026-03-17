@@ -138,7 +138,7 @@ function renderNav(filter) {
     ['all', 'all'],
   ]
   document.getElementById('nav').innerHTML = `
-    <a class="logo" href="#">HN</a>
+    <a class="logo" href="#?f=${homeFilter}">HN</a>
     ${filters.map(([key, label]) =>
       `<a href="#?f=${key}" class="filter-pill${filter === key ? ' active' : ''}">${label}</a>`
     ).join('')}
@@ -658,6 +658,19 @@ document.addEventListener('click', (e) => {
     toggleFavorite(favBtn.dataset.id).then(added => {
       favBtn.textContent = added ? 'unsave' : 'save'
     })
+    return
+  }
+
+  // Logo — go home with current filter, force-refresh
+  const logo = e.target.closest('.logo')
+  if (logo) {
+    e.preventDefault()
+    savedScrollY = 0
+    homeHTML = ''
+    homeLoaded = false
+    localStorage.removeItem(CACHE_KEY)
+    location.hash = `?f=${homeFilter}`
+    loadHome(homeFilter)
     return
   }
 
